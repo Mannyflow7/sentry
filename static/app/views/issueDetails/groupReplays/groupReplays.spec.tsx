@@ -9,7 +9,7 @@ jest.mock('sentry/utils/useMedia', () => ({
   default: jest.fn(() => true),
 }));
 
-const mockReplayCountUrl = '/organizations/org-slug/replay-count/';
+const mockEventsUrl = '/organizations/org-slug/events/';
 const mockReplayUrl = '/organizations/org-slug/replays/';
 
 type InitializeOrgProps = {
@@ -17,9 +17,6 @@ type InitializeOrgProps = {
     features?: string[];
   };
 };
-
-const REPLAY_ID_1 = '346789a703f6454384f1de473b8b9fcc';
-const REPLAY_ID_2 = 'b05dae9b6be54d21a4d5ad9f8f02b780';
 
 function init({
   organizationProps = {features: ['session-replay-ui']},
@@ -78,13 +75,16 @@ describe('GroupReplays', () => {
   describe('Replay Feature Enabled', () => {
     const {router, organization, routerContext} = init({});
 
-    it('should query the replay-count endpoint with the fetched replayIds', async () => {
+    it('should query the events endpoint with the fetched replayIds', async () => {
       const mockGroup = TestStubs.Group();
 
-      const mockReplayCountApi = MockApiClient.addMockResponse({
-        url: mockReplayCountUrl,
+      const mockEventsApi = MockApiClient.addMockResponse({
+        url: mockEventsUrl,
         body: {
-          [mockGroup.id]: [REPLAY_ID_1, REPLAY_ID_2],
+          data: [
+            {replayId: '346789a703f6454384f1de473b8b9fcc', 'count()': 1},
+            {replayId: 'b05dae9b6be54d21a4d5ad9f8f02b780', 'count()': 1},
+          ],
         },
       });
 
@@ -102,14 +102,16 @@ describe('GroupReplays', () => {
       });
 
       await waitFor(() => {
-        expect(mockReplayCountApi).toHaveBeenCalledWith(
-          mockReplayCountUrl,
+        expect(mockEventsApi).toHaveBeenCalledWith(
+          mockEventsUrl,
           expect.objectContaining({
             query: {
-              returnIds: true,
-              query: `issue.id:[${mockGroup.id}]`,
+              environment: [],
+              field: ['replayId', 'count()'],
+              per_page: 50,
+              project: ['2'],
+              query: `issue.id:${mockGroup.id} !replayId:""`,
               statsPeriod: '14d',
-              project: '2',
             },
           })
         );
@@ -132,7 +134,8 @@ describe('GroupReplays', () => {
               ],
               per_page: 50,
               project: ['2'],
-              query: `id:[${REPLAY_ID_1},${REPLAY_ID_2}]`,
+              query:
+                'id:[346789a703f6454384f1de473b8b9fcc,b05dae9b6be54d21a4d5ad9f8f02b780]',
               sort: '-started_at',
               statsPeriod: '14d',
             }),
@@ -144,10 +147,13 @@ describe('GroupReplays', () => {
     it('should show empty message when no replays are found', async () => {
       const mockGroup = TestStubs.Group();
 
-      const mockReplayCountApi = MockApiClient.addMockResponse({
-        url: mockReplayCountUrl,
+      const mockEventsApi = MockApiClient.addMockResponse({
+        url: mockEventsUrl,
         body: {
-          [mockGroup.id]: [REPLAY_ID_1, REPLAY_ID_2],
+          data: [
+            {replayId: '346789a703f6454384f1de473b8b9fcc', 'count()': 1},
+            {replayId: 'b05dae9b6be54d21a4d5ad9f8f02b780', 'count()': 1},
+          ],
         },
       });
 
@@ -167,7 +173,7 @@ describe('GroupReplays', () => {
       expect(
         await screen.findByText('There are no items to display')
       ).toBeInTheDocument();
-      expect(mockReplayCountApi).toHaveBeenCalledTimes(1);
+      expect(mockEventsApi).toHaveBeenCalledTimes(1);
       expect(mockReplayApi).toHaveBeenCalledTimes(1);
       expect(container).toSnapshot();
     });
@@ -175,10 +181,13 @@ describe('GroupReplays', () => {
     it('should display error message when api call fails', async () => {
       const mockGroup = TestStubs.Group();
 
-      const mockReplayCountApi = MockApiClient.addMockResponse({
-        url: mockReplayCountUrl,
+      const mockEventsApi = MockApiClient.addMockResponse({
+        url: mockEventsUrl,
         body: {
-          [mockGroup.id]: [REPLAY_ID_1, REPLAY_ID_2],
+          data: [
+            {replayId: '346789a703f6454384f1de473b8b9fcc', 'count()': 1},
+            {replayId: 'b05dae9b6be54d21a4d5ad9f8f02b780', 'count()': 1},
+          ],
         },
       });
 
@@ -197,7 +206,7 @@ describe('GroupReplays', () => {
       });
 
       await waitFor(() => {
-        expect(mockReplayCountApi).toHaveBeenCalledTimes(1);
+        expect(mockEventsApi).toHaveBeenCalledTimes(1);
         expect(mockReplayApi).toHaveBeenCalledTimes(1);
         expect(
           screen.getByText('Invalid number: asdf. Expected number.')
@@ -208,10 +217,13 @@ describe('GroupReplays', () => {
     it('should display default error message when api call fails without a body', async () => {
       const mockGroup = TestStubs.Group();
 
-      const mockReplayCountApi = MockApiClient.addMockResponse({
-        url: mockReplayCountUrl,
+      const mockEventsApi = MockApiClient.addMockResponse({
+        url: mockEventsUrl,
         body: {
-          [mockGroup.id]: [REPLAY_ID_1, REPLAY_ID_2],
+          data: [
+            {replayId: '346789a703f6454384f1de473b8b9fcc', 'count()': 1},
+            {replayId: 'b05dae9b6be54d21a4d5ad9f8f02b780', 'count()': 1},
+          ],
         },
       });
 
@@ -228,7 +240,7 @@ describe('GroupReplays', () => {
       });
 
       await waitFor(() => {
-        expect(mockReplayCountApi).toHaveBeenCalledTimes(1);
+        expect(mockEventsApi).toHaveBeenCalledTimes(1);
         expect(mockReplayApi).toHaveBeenCalledTimes(1);
         expect(
           screen.getByText(
@@ -241,10 +253,13 @@ describe('GroupReplays', () => {
     it('should show loading indicator when loading replays', async () => {
       const mockGroup = TestStubs.Group();
 
-      const mockReplayCountApi = MockApiClient.addMockResponse({
-        url: mockReplayCountUrl,
+      const mockEventsApi = MockApiClient.addMockResponse({
+        url: mockEventsUrl,
         body: {
-          [mockGroup.id]: [REPLAY_ID_1, REPLAY_ID_2],
+          data: [
+            {replayId: '346789a703f6454384f1de473b8b9fcc', 'count()': 1},
+            {replayId: 'b05dae9b6be54d21a4d5ad9f8f02b780', 'count()': 1},
+          ],
         },
       });
 
@@ -264,7 +279,7 @@ describe('GroupReplays', () => {
 
       expect(screen.getByTestId('loading-indicator')).toBeInTheDocument();
       await waitFor(() => {
-        expect(mockReplayCountApi).toHaveBeenCalledTimes(1);
+        expect(mockEventsApi).toHaveBeenCalledTimes(1);
         expect(mockReplayApi).toHaveBeenCalledTimes(1);
       });
     });
@@ -272,10 +287,13 @@ describe('GroupReplays', () => {
     it('should show a list of replays and have the correct values', async () => {
       const mockGroup = TestStubs.Group();
 
-      const mockReplayCountApi = MockApiClient.addMockResponse({
-        url: mockReplayCountUrl,
+      const mockEventsApi = MockApiClient.addMockResponse({
+        url: mockEventsUrl,
         body: {
-          [mockGroup.id]: [REPLAY_ID_1, REPLAY_ID_2],
+          data: [
+            {replayId: '346789a703f6454384f1de473b8b9fcc', 'count()': 1},
+            {replayId: 'b05dae9b6be54d21a4d5ad9f8f02b780', 'count()': 1},
+          ],
         },
       });
 
@@ -288,7 +306,7 @@ describe('GroupReplays', () => {
               count_errors: 1,
               duration: 52346,
               finished_at: '2022-09-15T06:54:00+00:00',
-              id: REPLAY_ID_1,
+              id: '346789a703f6454384f1de473b8b9fcc',
               project_id: '2',
               started_at: '2022-09-15T06:50:03+00:00',
               urls: [
@@ -307,7 +325,7 @@ describe('GroupReplays', () => {
               count_errors: 4,
               duration: 400,
               finished_at: '2022-09-21T21:40:38+00:00',
-              id: REPLAY_ID_2,
+              id: 'b05dae9b6be54d21a4d5ad9f8f02b780',
               project_id: '2',
               started_at: '2022-09-21T21:30:44+00:00',
               urls: [
@@ -337,7 +355,7 @@ describe('GroupReplays', () => {
       });
 
       await waitFor(() => {
-        expect(mockReplayCountApi).toHaveBeenCalledTimes(1);
+        expect(mockEventsApi).toHaveBeenCalledTimes(1);
         expect(mockReplayApi).toHaveBeenCalledTimes(1);
       });
 
@@ -350,13 +368,13 @@ describe('GroupReplays', () => {
       // Expect the first row to have the correct href
       expect(screen.getAllByRole('link', {name: 'testDisplayName'})[0]).toHaveAttribute(
         'href',
-        `/organizations/org-slug/replays/project-slug:${REPLAY_ID_1}/?${expectedQuery}`
+        `/organizations/org-slug/replays/project-slug:346789a703f6454384f1de473b8b9fcc/?${expectedQuery}`
       );
 
       // Expect the second row to have the correct href
       expect(screen.getAllByRole('link', {name: 'testDisplayName'})[1]).toHaveAttribute(
         'href',
-        `/organizations/org-slug/replays/project-slug:${REPLAY_ID_2}/?${expectedQuery}`
+        `/organizations/org-slug/replays/project-slug:b05dae9b6be54d21a4d5ad9f8f02b780/?${expectedQuery}`
       );
 
       // Expect the first row to have the correct duration
@@ -380,6 +398,71 @@ describe('GroupReplays', () => {
 
       // Expect the second row to have the correct date
       expect(screen.getByText('7 days ago')).toBeInTheDocument();
+    });
+  });
+  describe('sorting', () => {
+    let mockEventsApi;
+    let mockReplayApi;
+
+    beforeEach(() => {
+      mockEventsApi = MockApiClient.addMockResponse({
+        url: mockEventsUrl,
+        body: {
+          data: [
+            {replayId: '346789a703f6454384f1de473b8b9fcc', 'count()': 1},
+            {replayId: 'b05dae9b6be54d21a4d5ad9f8f02b780', 'count()': 1},
+          ],
+        },
+      });
+
+      mockReplayApi = MockApiClient.addMockResponse({
+        url: mockReplayUrl,
+        body: {
+          data: [],
+        },
+        statusCode: 200,
+      });
+    });
+
+    it('should not call the events api again when sorting the visible rows', async () => {
+      const mockGroup = TestStubs.Group();
+
+      const {router, organization, routerContext} = init({});
+      const {rerender} = render(<GroupReplays group={mockGroup} />, {
+        context: routerContext,
+        organization,
+        router,
+      });
+
+      await waitFor(() => {
+        expect(mockEventsApi).toHaveBeenCalledTimes(1);
+        expect(mockReplayApi).toHaveBeenCalledTimes(1);
+        expect(mockReplayApi).toHaveBeenLastCalledWith(
+          mockReplayUrl,
+          expect.objectContaining({
+            query: expect.objectContaining({
+              sort: '-started_at',
+            }),
+          })
+        );
+      });
+
+      // Change the sort order then tell react to re-render
+      router.location.query.sort = 'duration';
+      rerender(<GroupReplays group={mockGroup} />);
+
+      await waitFor(() => {
+        expect(mockEventsApi).toHaveBeenCalledTimes(1);
+        expect(mockReplayApi).toHaveBeenCalledTimes(2);
+        expect(mockReplayApi).toHaveBeenLastCalledWith(
+          mockReplayUrl,
+          expect.objectContaining({
+            query: expect.objectContaining({
+              sort: 'duration',
+            }),
+          })
+        );
+      });
     });
   });
 });
